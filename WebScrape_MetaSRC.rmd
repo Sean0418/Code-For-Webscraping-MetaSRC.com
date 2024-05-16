@@ -1,0 +1,98 @@
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(rvest)
+library(Dict)
+
+```
+
+Instructions:
+
+1. run the functions 
+
+2. Change url to a specific patch and region on MetaSRC, copy the url
+
+3. given the url, pass the url into the function `webscrape` to scrape the data
+
+Note: the csv file is important for the keychain to be initiated correctly 
+
+
+
+```{r}
+makeKeyChain =function(){
+  championClass <-read_csv("League of Legends Champion Stats 13.7.csv") %>% select(Name, Class) %>%
+    distinct() %>%
+    arrange(Name)
+    
+  championClass
+  
+  key <- championClass$Name
+  value <- championClass$Class
+  
+  keyChain <- list()
+  for (i in 1:length(key)){
+    keyChain[key[i]] <- value[i]
+  }
+  
+  #new champions in season 13
+  keyChain["Hwei"] <- "Mage"
+  keyChain["Naafiri"] <- "Assassin"
+  keyChain["Briar"] <- "Fighter"
+  keyChain["Milio"] <- "Support"
+  
+  keyChain
+}
+```
+
+
+```{r}
+webscrape=function(url){
+  keyChain = makeKeyChain()
+  
+  leagueScrapeIni = url %>%
+    read_html() %>%
+    html_table(fill=TRUE) %>%
+    .[[1]]
+  
+  
+  leagueScrapeMid <- leagueScrapeIni %>%
+    rowid_to_column("ID") %>%
+    mutate(Name = substring(leagueScrapeIni$Name[ID], 1,
+                            nchar(leagueScrapeIni$Name[ID])/2)) 
+  
+  #added the class variable with keys
+  #add the tiers: God, S, A, B, C or D
+  leagueScrape1 <- leagueScrapeMid %>%
+    mutate(Class = as.character(keyChain[leagueScrapeMid$Name[`ID`]])) %>%
+    separate(Tier, into= c('tier1', 'tier2'), sep=" / ") %>%
+    mutate(Tier = ifelse(tier1=="God", tier1, tier2)) %>%
+    select(Name, Class, Role, Tier, Score, Trend, `Win %`, `Role %`, `Pick %`, `Ban %`, KDA)
+  
+  #change patch number here
+  leagueScrape24 <- 
+    cbind(leagueScrape1, rep("13_24", times=nrow(leagueScrape1))) %>%
+    rename(Patch=`rep("13_24", times = nrow(leagueScrape1))`)
+}
+```
+
+
+
+```{r, warning=F}
+url="https://www.metasrc.com/lol/KR/13.24/stats"
+
+#save the webscraped file
+leaguedf <- webscrape(url)
+
+head(leaguedf)
+
+#write into a csv
+write.csv(leaguedf, "Webscraped_dataframe.csv")
+```
+
+
+
+
